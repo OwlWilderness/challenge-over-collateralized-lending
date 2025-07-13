@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 const deployedContracts = {
   31337: {
     Corn: {
-      address: "0x66F625B8c4c635af8b74ECe2d7eD0D58b4af3C3d",
+      address: "0x21915b79E1d334499272521a3508061354D13FF0",
       abi: [
         {
           inputs: [],
@@ -476,7 +476,7 @@ const deployedContracts = {
       },
     },
     CornDEX: {
-      address: "0x8bCe54ff8aB45CB075b044AE117b8fD91F9351aB",
+      address: "0x44863F234b137A395e5c98359d16057A9A1fAc55",
       abi: [
         {
           inputs: [
@@ -783,7 +783,7 @@ const deployedContracts = {
       inheritedFunctions: {},
     },
     Lending: {
-      address: "0x74Cf9087AD26D541930BaC724B7ab21bA8F00a27",
+      address: "0x0c03eCB91Cb50835e560a7D52190EB1a5ffba797",
       abi: [
         {
           inputs: [
@@ -803,7 +803,22 @@ const deployedContracts = {
         },
         {
           inputs: [],
+          name: "Lending__BorrowingFailed",
+          type: "error",
+        },
+        {
+          inputs: [],
+          name: "Lending__InsufficientLiquidatorCorn",
+          type: "error",
+        },
+        {
+          inputs: [],
           name: "Lending__InvalidAmount",
+          type: "error",
+        },
+        {
+          inputs: [],
+          name: "Lending__NotLiquidatable",
           type: "error",
         },
         {
@@ -1175,7 +1190,7 @@ const deployedContracts = {
       },
     },
     MovePrice: {
-      address: "0xefAB0Beb0A557E452b398035eA964948c750b2Fd",
+      address: "0x1c39BA375faB6a9f6E0c01B9F49d488e101C2011",
       abi: [
         {
           inputs: [

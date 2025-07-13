@@ -63,6 +63,11 @@ contract Lending is Ownable {
             revert Lending__InvalidAmount();
         }
         s_userCollateral[msg.sender] -= amount;
+    
+        if(s_userBorrowed[msg.sender] > 0){
+            _validatePosition(msg.sender);
+        }
+
         (bool success, ) = msg.sender.call{value: amount}("");
         if(!success){
             revert Lending__TransferFailed();
@@ -123,7 +128,13 @@ contract Lending is Ownable {
         }
         s_userBorrowed[msg.sender] += borrowAmount;
         _validatePosition(msg.sender);
-        i_corn.transferFrom(address(this), msg.sender, borrowAmount);
+        try i_corn.transferFrom(address(this), msg.sender, borrowAmount) returns (bool success) {
+            if(!success){
+                revert Lending__BorrowingFailed();
+            }
+        } catch {
+            revert Lending__BorrowingFailed();
+        }
         emit AssetBorrowed(msg.sender, borrowAmount, i_cornDEX.currentPrice());
     }
 
@@ -155,5 +166,36 @@ contract Lending is Ownable {
      * @dev The caller must have enough CORN to pay back user's debt
      * @dev The caller must have approved this contract to transfer the debt
      */
-    function liquidate(address user) public {}
+    function liquidate(address user) public {
+        if(!isLiquidatable(user)){
+            revert Lending__NotLiquidatable();
+        }
+        uint256 bcornamt = s_userBorrowed[user];
+        if(i_corn.balanceOf(msg.sender) < bcornamt){
+            revert Lending__InsufficientLiquidatorCorn();
+        }
+
+        //repay corn
+        try i_corn.transferFrom(msg.sender, address(this), bcornamt) returns (bool _success){
+            if(!_success){
+                revert Lending__RepayingFailed();
+            }
+        } catch {
+            revert Lending__RepayingFailed();
+        }
+        s_userBorrowed[user] = 0;
+
+        //calculate and send collateral to sender
+        uint256 camt = bcornamt * i_cornDEX.currentPrice();
+        uint256 tamt = camt + (LIQUIDATOR_REWARD / camt); 
+        if(tamt > s_userCollateral[user]){
+            tamt = s_userCollateral[user];
+        }
+        s_userCollateral[user] -= tamt;
+        (bool success, ) = msg.sender.call{value: tamt}("");
+        if(!success){
+            revert Lending__RepayingFailed();
+        }
+        emit Liquidation(user, msg.sender, tamt, bcornamt, i_cornDEX.currentPrice());
+    }
 }
