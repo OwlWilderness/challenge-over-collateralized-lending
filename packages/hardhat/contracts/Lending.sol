@@ -5,6 +5,9 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "./Corn.sol";
 import "./CornDEX.sol";
 
+//buidlguidl https://speedrunethereum.com/challenge/over-collateralized-lending challenge
+//quantumtekh.eth
+
 error Lending__InvalidAmount();
 error Lending__TransferFailed();
 error Lending__UnsafePositionRatio();
@@ -13,7 +16,7 @@ error Lending__RepayingFailed();
 error Lending__PositionSafe();
 error Lending__NotLiquidatable();
 error Lending__InsufficientLiquidatorCorn();
-//error Lending__NoCollateral();
+error Lending__FlashLoanOperationUnsuccesfull();
 
 contract Lending is Ownable {
     uint256 private constant COLLATERAL_RATIO = 120; // 120% collateralization required
@@ -47,10 +50,14 @@ contract Lending is Ownable {
      * @notice Allows users to add collateral to their account
      */
     function addCollateral() public payable {
+        //validate
         if (msg.value == 0){
             revert Lending__InvalidAmount();
         }
+        
+        //manage collateral map for sender
         s_userCollateral[msg.sender] += msg.value;
+
         emit CollateralAdded(msg.sender,msg.value,i_cornDEX.currentPrice());
     }
 
@@ -59,19 +66,25 @@ contract Lending is Ownable {
      * @param amount The amount of collateral to withdraw
      */
     function withdrawCollateral(uint256 amount) public {
+        //validate
         if (amount == 0 || amount > s_userCollateral[msg.sender]){
             revert Lending__InvalidAmount();
         }
+
+        //manage colateral map for sender
         s_userCollateral[msg.sender] -= amount;
     
+        //validate will not make unsafe position if user has borrowed
         if(s_userBorrowed[msg.sender] > 0){
             _validatePosition(msg.sender);
         }
 
+        //xfer withdrawn collateral to sender
         (bool success, ) = msg.sender.call{value: amount}("");
         if(!success){
             revert Lending__TransferFailed();
         }
+
         emit CollateralWithdrawn(msg.sender,amount,i_cornDEX.currentPrice());
     }
 
@@ -90,9 +103,6 @@ contract Lending is Ownable {
      * @return uint256 The position ratio
      */
     function _calculatePositionRatio(address user) internal view returns (uint256) {
-        //if(s_userCollateral[user]==0){
-          //  revert Lending__NoCollateral();
-        //}
         if(s_userBorrowed[user]==0){
             return type(uint256).max;
         }
@@ -123,11 +133,18 @@ contract Lending is Ownable {
      * @param borrowAmount The amount of corn to borrow
      */
     function borrowCorn(uint256 borrowAmount) public {
+        //validate
         if(borrowAmount==0){
             revert Lending__InvalidAmount();
         }
+        
+        //manage borrowed map for sender
         s_userBorrowed[msg.sender] += borrowAmount;
+
+        //verify safe position
         _validatePosition(msg.sender);
+
+        //transfer corn to sender
         try i_corn.transferFrom(address(this), msg.sender, borrowAmount) returns (bool success) {
             if(!success){
                 revert Lending__BorrowingFailed();
@@ -135,6 +152,7 @@ contract Lending is Ownable {
         } catch {
             revert Lending__BorrowingFailed();
         }
+
         emit AssetBorrowed(msg.sender, borrowAmount, i_cornDEX.currentPrice());
     }
 
@@ -143,12 +161,15 @@ contract Lending is Ownable {
      * @param repayAmount The amount of corn to repay
      */
     function repayCorn(uint256 repayAmount) public {
+        //validate
         if(repayAmount == 0 || repayAmount > s_userBorrowed[msg.sender]){
             revert Lending__InvalidAmount();    
         }
         if(i_corn.balanceOf(msg.sender) < repayAmount){
             revert Lending__RepayingFailed();
         }
+
+        //xfer corn to contract
         try i_corn.transferFrom(msg.sender,address(this),repayAmount) returns (bool success) {
             if(!success){
                 revert Lending__RepayingFailed();
@@ -156,7 +177,10 @@ contract Lending is Ownable {
         } catch {
             revert Lending__RepayingFailed();
         }
+
+        //manage borrowed map for sender
         s_userBorrowed[msg.sender] -= repayAmount;
+
         emit AssetRepaid(msg.sender,repayAmount,i_cornDEX.currentPrice());
     }
 
@@ -167,6 +191,7 @@ contract Lending is Ownable {
      * @dev The caller must have approved this contract to transfer the debt
      */
     function liquidate(address user) public {
+        //validate
         if(!isLiquidatable(user)){
             revert Lending__NotLiquidatable();
         }
@@ -175,7 +200,7 @@ contract Lending is Ownable {
             revert Lending__InsufficientLiquidatorCorn();
         }
 
-        //repay corn
+        //repay corn and set borrowed for user to 0
         try i_corn.transferFrom(msg.sender, address(this), bcornamt) returns (bool _success){
             if(!_success){
                 revert Lending__RepayingFailed();
@@ -194,8 +219,9 @@ contract Lending is Ownable {
         s_userCollateral[user] -= tamt;
         (bool success, ) = msg.sender.call{value: tamt}("");
         if(!success){
-            revert Lending__RepayingFailed();
+            revert Lending__TransferFailed();
         }
+
         emit Liquidation(user, msg.sender, tamt, bcornamt, i_cornDEX.currentPrice());
     }
 }
