@@ -100,8 +100,15 @@ const CollateralGraph = () => {
   const ratioData = sortedEvents.reduce<DataPoint[]>((acc, event, idx) => {
     const collateralAdded: bigint = event?.eventName === "CollateralAdded" ? event?.args.amount || 0n : 0n;
     const collateralWithdrawn: bigint = event?.eventName === "CollateralWithdrawn" ? event?.args.amount || 0n : 0n;
-    const price: bigint =
-      "price" in event?.args ? event?.args.price : getPriceFromEvent(event?.blockNumber, priceEvents);
+    //const price: bigint =
+    //  event?.args && "price" in event?.args ? event?.args.price : getPriceFromEvent(event?.blockNumber, priceEvents);
+    const fallbackPrice =
+      typeof event?.blockNumber === "bigint"
+        ? getPriceFromEvent(event?.blockNumber, priceEvents)
+        : initialPrice * parseEther("1");
+
+    const price: bigint = event?.args?.price ?? fallbackPrice;
+    // const price: bigint = event?.args?.price !== undefined ? event.args.price : getPriceFromEvent(event?.blockNumber, priceEvents) ?? 0n;
     const debtAdded: bigint = event?.eventName === "AssetBorrowed" ? event?.args.amount || 0n : 0n;
     const debtRepaid: bigint = event?.eventName === "AssetRepaid" ? event?.args.amount || 0n : 0n;
     const amountForLiquidator: bigint = event?.eventName === "Liquidation" ? event?.args.amountForLiquidator || 0n : 0n;
