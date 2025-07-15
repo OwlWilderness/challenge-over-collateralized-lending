@@ -40,6 +40,7 @@ const deployContracts: DeployFunction = async function (hre: HardhatRuntimeEnvir
     autoMine: true,
   });
   const cornDEX = await hre.ethers.getContract<Contract>("CornDEX", deployer);
+
   const lending = await deploy("Lending", {
     from: deployer,
     args: [cornDEX.target, cornToken.target],
@@ -48,13 +49,14 @@ const deployContracts: DeployFunction = async function (hre: HardhatRuntimeEnvir
   });
 
   // Set up the move price contract
-  const movePrice = await deploy("MovePrice", {
+  await deploy("MovePrice", {
     from: deployer,
     args: [cornDEX.target, cornToken.target],
     log: true,
     autoMine: true,
   });
 
+  const movePrice = await hre.ethers.getContract<Contract>("MovePrice", deployer);
   // Only set up contract state on local network
   if (hre.network.name == "localhost") {
     // Give ETH and CORN to the move price contract
